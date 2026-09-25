@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tracing the Past — Peta Warisan Budaya yang Hilang</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root{ --hindu:#d9873d; --islam:#3f9e78; --kolonial:#5b8fc4; }
+  *{box-sizing:border-box;}
+  html,body{height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
+  #topbar{
+    padding:10px 16px; background:#182126; color:#e9e2d0; display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
+  }
+  #topbar h1{font-size:1.05rem; margin:0;}
+  #topbar p{margin:0; font-size:.8rem; color:#a9a190;}
+  #wrap{display:flex; height:calc(100vh - 52px);}
+  #sidebar{width:300px; border-right:1px solid #ddd; overflow-y:auto; flex:none;}
+  @media (max-width:760px){ #wrap{flex-direction:column;} #sidebar{width:100%; height:38vh;} #map{height:62vh;} }
+  #map{flex:1;}
+  .controls{padding:10px; border-bottom:1px solid #eee; display:flex; flex-direction:column; gap:6px;}
+  .controls input, .controls select{padding:6px 8px; font-size:.85rem;}
+  .card{padding:8px 10px; border-bottom:1px solid #f0f0f0; cursor:pointer; font-size:.82rem;}
+  .card:hover{background:#f7f5ef;}
+  .card b{display:block; font-size:.85rem;}
+  .badge{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px;}
+  .popup h3{margin:0 0 4px; font-size:.95rem;}
+  .popup .meta{font-size:.75rem; color:#666; margin-bottom:6px;}
+  .popup p{font-size:.82rem; margin:6px 0;}
+  .popup a{font-size:.78rem;}
+  .legend{position:absolute; bottom:16px; left:16px; z-index:1000; background:#fff; padding:8px 12px; border-radius:8px; box-shadow:0 1px 4px rgba(0,0,0,.2); font-size:.75rem;}
+  .legend div{margin:2px 0;}
+</style>
+</head>
+<body>
+<div id="topbar">
+  <h1>Tracing the Past</h1>
+  <p>Peta bangunan &amp; situs bersejarah di Jawa (+Bali) yang hilang / roboh / tinggal reruntuhan</p>
+</div>
+<div id="wrap">
+  <div id="sidebar">
+    <div class="controls">
+      <input id="q" type="text" placeholder="Cari nama / kota / provinsi...">
+      <select id="fKategori"><option value="all">Semua era</option></select>
+      <select id="fProvinsi"><option value="all">Semua provinsi</option></select>
+    </div>
+    <div id="list"></div>
+  </div>
+  <div id="map"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="data.js"></script>
+<script>
+const GROUP = {
+  color: {hindu:'#d9873d', islam:'#3f9e78', kolonial:'#5b8fc4'},
+  label: {hindu:'Kerajaan Hindu–Buddha', islam:'Kesultanan & keraton Islam', kolonial:'Era kolonial'}
+};
+function groupOf(kat){
+  if(/kolonial/i.test(kat)) return 'kolonial';
+  if(/kesultanan|mataram/i.test(kat)) return 'islam';
+  return 'hindu';
+}
+DATA.forEach(d => d.group = groupOf(d.kategori));
+
+const map = L.map('map').setView([-7.4, 110.2], 7);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  maxZoom: 19
+}).addTo(map);
+
+const markers = {};
+const layerGroup = L.layerGroup().addTo(map);
+
+function popupHtml(d){
+  return `<div class="popup">
+    <h3>${d.nama}</h3>
+    <div class="meta">${GROUP.label[d.group]} · ${d.era}</div>
+    <div class="meta">${d.lokasi} — ${d.kab}, ${d.provinsi}</div>
+    <p><b>Kondisi saat ini:</b> ${d.kondisi}</p>
+    <p>${d.deskripsi}</p>
+    <a href="${d.sumber}" target="_blank" rel="noopener">Sumber rujukan ↗</a>
+  </div>`;
+}
+
+DATA.forEach(d => {
+  const m = L.circleMarker([d.lat, d.lon], {
+    radius: 7,
+    color: '#222',
+    weight: 1,
+    fillColor: GROUP.color[d.group],
+    fillOpacity: 0.9
+  }).bindPopup(popupHtml(d));
+  m.addTo(layerGroup);
+  markers[d.id] = m;
+});
+
+const legend = L.control({position:'bottomleft'});
+legend.onAdd = function(){
+  const div = L.DomUtil.create('div','legend');
+  div.innerHTML = Object.keys(GROUP.label).map(g =>
+    `<div><span class="badge" style="background:${GROUP.color[g]}"></span>${GROUP.label[g]}</div>`
+  ).join('');
+  return div;
+};
+legend.addTo(map);
+
+// ---- sidebar ----
+const listEl = document.getElementById('list');
+const qEl = document.getElementById('q');
+const fKat = document.getElementById('fKategori');
+const fProv = document.getElementById('fProvinsi');
+
+[...new Set(DATA.map(d=>d.group))].forEach(g=>{
+  const o = document.createElement('option'); o.value=g; o.textContent = GROUP.label[g];
+  fKat.appendChild(o);
+});
+[...new Set(DATA.map(d=>d.provinsi))].sort().forEach(p=>{
+  const o = document.createElement('option'); o.value=p; o.textContent = p;
+  fProv.appendChild(o);
+});
+
+function filtered(){
+  const q = qEl.value.trim().toLowerCase();
+  return DATA.filter(d=>{
+    if(fKat.value!=='all' && d.group!==fKat.value) return false;
+    if(fProv.value!=='all' && d.provinsi!==fProv.value) return false;
+    if(q && !(d.nama.toLowerCase().includes(q) || d.provinsi.toLowerCase().includes(q) || d.kab.toLowerCase().includes(q))) return false;
+    return true;
+  });
+}
+
+function renderList(){
+  const rows = filtered();
+  const visibleIds = new Set(rows.map(r=>r.id));
+  Object.entries(markers).forEach(([id,m])=>{
+    const show = visibleIds.has(Number(id));
+    if(show && !map.hasLayer(m)) layerGroup.addLayer(m);
+    if(!show && map.hasLayer(m)) layerGroup.removeLayer(m);
+  });
+  listEl.innerHTML = rows.map(d => `
+    <div class="card" data-id="${d.id}">
+      <b><span class="badge" style="background:${GROUP.color[d.group]}"></span>${d.nama}</b>
+      ${d.kab}, ${d.provinsi}
+    </div>`).join('') || '<div class="card">Tidak ada hasil.</div>';
+  listEl.querySelectorAll('.card[data-id]').forEach(card=>{
+    card.addEventListener('click', ()=>{
+      const d = DATA.find(x=>x.id===Number(card.dataset.id));
+      map.setView([d.lat, d.lon], 11, {animate:true});
+      markers[d.id].openPopup();
+    });
+  });
+}
+qEl.addEventListener('input', renderList);
+fKat.addEventListener('change', renderList);
+fProv.addEventListener('change', renderList);
+renderList();
+</script>
+</body>
+</html>
