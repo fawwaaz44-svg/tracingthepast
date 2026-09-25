@@ -17,7 +17,8 @@
   #wrap{display:flex; height:calc(100vh - 52px);}
   #sidebar{width:300px; border-right:1px solid #ddd; overflow-y:auto; flex:none;}
   @media (max-width:760px){ #wrap{flex-direction:column;} #sidebar{width:100%; height:38vh;} #map{height:62vh;} }
-  #map{flex:1;}
+  #map{flex:1; position:relative;}
+  @media (max-width:520px){ #statpanel{width:calc(100% - 28px);} }
   .controls{padding:10px; border-bottom:1px solid #eee; display:flex; flex-direction:column; gap:6px;}
   .controls input, .controls select{padding:6px 8px; font-size:.85rem;}
   .card{padding:8px 10px; border-bottom:1px solid #f0f0f0; cursor:pointer; font-size:.82rem;}
@@ -30,6 +31,31 @@
   .popup a{font-size:.78rem;}
   .legend{position:absolute; bottom:16px; left:16px; z-index:1000; background:#fff; padding:8px 12px; border-radius:8px; box-shadow:0 1px 4px rgba(0,0,0,.2); font-size:.75rem;}
   .legend div{margin:2px 0;}
+
+  #statpanel{
+    position:absolute; top:14px; right:14px; z-index:1000; width:270px; max-height:calc(100% - 28px);
+    background:#ffffff; color:#222; border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,.18);
+    font-size:.8rem; overflow:hidden; display:flex; flex-direction:column; border:1px solid #e5e2da;
+  }
+  #statpanel .sp-head{
+    display:flex; align-items:center; justify-content:space-between; padding:12px 14px;
+    cursor:pointer; border-bottom:1px solid #eee; font-size:.72rem; letter-spacing:.08em;
+    text-transform:uppercase; color:#888;
+  }
+  #statpanel .sp-head b{color:#222; letter-spacing:.02em; text-transform:none; font-size:.85rem;}
+  #statpanel .sp-body{padding:14px; overflow-y:auto;}
+  #statpanel.collapsed .sp-body{display:none;}
+  .sp-big{font-size:1.9rem; font-weight:700; color:#c96f2e; line-height:1;}
+  .sp-big-label{font-size:.68rem; color:#888; letter-spacing:.06em; text-transform:uppercase; margin-top:2px;}
+  .sp-section-title{font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; color:#888; margin:16px 0 8px;}
+  .sp-section-title:first-of-type{margin-top:14px;}
+  .stat-row{display:flex; align-items:center; gap:8px; margin:7px 0;}
+  .stat-label{width:98px; flex:none; color:#444; font-size:.74rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .stat-bar-wrap{flex:1; background:#f0ede4; border-radius:4px; height:7px; overflow:hidden;}
+  .stat-bar{height:100%; border-radius:4px; background:linear-gradient(90deg,#e0a05a,#c96f2e);}
+  .stat-count{width:28px; text-align:right; font-variant-numeric:tabular-nums; color:#222; font-size:.74rem;}
+  .sp-caret{transition:transform .15s;}
+  #statpanel.collapsed .sp-caret{transform:rotate(-90deg);}
 </style>
 </head>
 <body>
@@ -46,7 +72,12 @@
     </div>
     <div id="list"></div>
   </div>
-  <div id="map"></div>
+  <div id="map">
+    <div id="statpanel">
+      <div class="sp-head" id="spToggle"><b>📊 Ringkasan Data</b><span class="sp-caret">▾</span></div>
+      <div class="sp-body" id="spBody"></div>
+    </div>
+  </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
@@ -155,6 +186,55 @@ qEl.addEventListener('input', renderList);
 fKat.addEventListener('change', renderList);
 fProv.addEventListener('change', renderList);
 renderList();
+
+// ---- statistik panel (tabel kondisi & kategori, gaya AGNI) ----
+function kelompokKondisi(x){
+  x = String(x || '').toLowerCase();
+  if(x.includes('hilang')) return 'Hilang';
+  if(x.includes('runtuh')) return 'Reruntuhan';
+  if(x.includes('hancur')) return 'Hancur';
+  if(x.includes('terendam')) return 'Terendam';
+  if(x.includes('terbengkalai')) return 'Terbengkalai';
+  if(x.includes('dipugar')) return 'Dipugar';
+  return 'Kondisi lainnya';
+}
+
+function countBy(arr, fn){
+  const m = new Map();
+  arr.forEach(d => { const k = fn(d); m.set(k, (m.get(k)||0)+1); });
+  return [...m.entries()].sort((a,b)=>b[1]-a[1]);
+}
+
+function barRows(pairs){
+  const max = Math.max(...pairs.map(p=>p[1]));
+  return pairs.map(([label,count]) => `
+    <div class="stat-row">
+      <div class="stat-label" title="${label}">${label}</div>
+      <div class="stat-bar-wrap"><div class="stat-bar" style="width:${(count/max*100).toFixed(0)}%"></div></div>
+      <div class="stat-count">${count}</div>
+    </div>`).join('');
+}
+
+function renderStats(){
+  const kondisiPairs = countBy(DATA, d => kelompokKondisi(d.kondisi));
+  const kategoriPairs = countBy(DATA, d => d.kategori);
+
+  document.getElementById('spBody').innerHTML = `
+    <div class="sp-big">${DATA.length}</div>
+    <div class="sp-big-label">Total situs terdata</div>
+
+    <div class="sp-section-title">Kondisi bangunan saat ini</div>
+    ${barRows(kondisiPairs)}
+
+    <div class="sp-section-title">Distribusi berdasarkan kategori</div>
+    ${barRows(kategoriPairs)}
+  `;
+}
+renderStats();
+
+document.getElementById('spToggle').addEventListener('click', ()=>{
+  document.getElementById('statpanel').classList.toggle('collapsed');
+});
 </script>
 </body>
 </html>
