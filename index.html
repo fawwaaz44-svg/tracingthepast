@@ -29,6 +29,15 @@
   .popup .meta{font-size:.75rem; color:#666; margin-bottom:6px;}
   .popup p{font-size:.82rem; margin:6px 0;}
   .popup a{font-size:.78rem;}
+  .leaflet-popup-content{margin:12px 14px; width:260px !important;}
+  .compare{position:relative; width:100%; aspect-ratio:4/3; border-radius:8px; overflow:hidden; margin-bottom:8px; background:#e8e5da;}
+  .compare img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block;}
+  .compare .img-before{clip-path:inset(0 calc(100% - var(--pos)) 0 0); border-right:2px solid #fff;}
+  .compare-range{position:absolute; left:6px; right:6px; bottom:6px; width:calc(100% - 12px); margin:0; z-index:2; accent-color:#c96f2e;}
+  .compare-labels{position:absolute; top:6px; left:0; right:0; display:flex; justify-content:space-between; padding:0 8px; font-size:.62rem; font-weight:600; letter-spacing:.03em; text-transform:uppercase; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,.7); pointer-events:none;}
+  .compare-empty{background:#f2f0ea; color:#999; font-size:.72rem; text-align:center; padding:26px 8px; border-radius:8px; margin-bottom:8px; border:1px dashed #ddd;}
+  .compare-single{position:relative; width:100%; aspect-ratio:4/3; border-radius:8px; overflow:hidden; margin-bottom:8px;}
+  .compare-single img{width:100%; height:100%; object-fit:cover; display:block;}
   .legend{position:absolute; bottom:16px; left:16px; z-index:1000; background:#fff; padding:8px 12px; border-radius:8px; box-shadow:0 1px 4px rgba(0,0,0,.2); font-size:.75rem;}
   .legend div{margin:2px 0;}
 
@@ -103,8 +112,27 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 const markers = {};
 const layerGroup = L.layerGroup().addTo(map);
 
+function photoBlock(d){
+  const lama = (d.foto_lama||'').trim();
+  const skrg = (d.foto_sekarang||'').trim();
+  if(lama && skrg){
+    return `<div class="compare" style="--pos:50%">
+      <img class="img-after" src="${skrg}" alt="Kondisi sekarang" loading="lazy">
+      <img class="img-before" src="${lama}" alt="Foto lama" loading="lazy">
+      <div class="compare-labels"><span>Dulu</span><span>Sekarang</span></div>
+      <input type="range" class="compare-range" min="0" max="100" value="50"
+        oninput="this.parentElement.style.setProperty('--pos', this.value+'%')">
+    </div>`;
+  }
+  if(lama || skrg){
+    return `<div class="compare-single"><img src="${lama||skrg}" alt="${lama?'Foto lama':'Kondisi sekarang'}" loading="lazy"></div>`;
+  }
+  return `<div class="compare-empty">📷 Foto lama/sekarang belum ditambahkan untuk situs ini</div>`;
+}
+
 function popupHtml(d){
   return `<div class="popup">
+    ${photoBlock(d)}
     <h3>${d.nama}</h3>
     <div class="meta">${GROUP.label[d.group]} · ${d.era}</div>
     <div class="meta">${d.lokasi} — ${d.kab}, ${d.provinsi}</div>
@@ -121,7 +149,7 @@ DATA.forEach(d => {
     weight: 1,
     fillColor: GROUP.color[d.group],
     fillOpacity: 0.9
-  }).bindPopup(popupHtml(d));
+  }).bindPopup(popupHtml(d), {maxWidth:280, minWidth:260});
   m.addTo(layerGroup);
   markers[d.id] = m;
 });
